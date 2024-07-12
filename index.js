@@ -1,43 +1,62 @@
-console.log("Hello World")
-
 // Docs:
 // https://dropbox.github.io/dropbox-sdk-js/Dropbox.html#filesListFolder__anchor
 var form = document.getElementById('basic-form');
+let ACCESS_TOKEN;
+let dbx;
 
-form.onsubmit = function listFiles(e) {
+form.onsubmit = async function listFiles(e) {
     e.preventDefault();
-
-    var ACCESS_TOKEN = document.getElementById('access-token').value;
+    let keyFileInfo = []
+    
     var folderName = document.getElementById('folderName').value;
-    var dbx = new Dropbox.Dropbox({ accessToken: ACCESS_TOKEN });
-    dbx.filesListFolder({path: 'id:rSXK5ZjGvuAAAAAAAAMusw'})
-    .then(function(response) {
-        const result = response.result
-        console.log(response)
-        const entries = result.entries.filter((entry) => entry.name == folderName);
-        console.log(entries)
-        const entryId = entries[0].id
-        folderResults = dbx.filesListFolder({path: entryId}).then(
-        function(response) {
-            console.log(response.result.entries)
-            displayFiles(response.result.entries);
-        }
-        )
-    })
-    .catch(function(error) {
-        console.error(error.error || error);
-    });
+    const parentFolderResponse = await filesListFolder('id:rSXK5ZjGvuAAAAAAAAMusw')
+
+    const childFolderEntries = parentFolderResponse.entries.filter((entry) => entry.name == folderName);
+    const childFolderId = childFolderEntries[0].id
+    const childFolderResponse = await filesListFolder(childFolderId)
+    for (const entry of childFolderResponse.entries) {
+        keyFileInfo.push({
+            Name: entry.name,
+            Downloadlink: await filesGetTemporaryLink(entry.id)
+        })
+    }
+    console.log(keyFileInfo)
+    //childFolderResponse.entries[0]["HUGH"] = "HUGH"
+    //console.log(childFolderResponse.entries)
+    displayFiles(keyFileInfo)
+}
+
+async function filesListFolder(path) {
+    ACCESS_TOKEN = document.getElementById('access-token').value;
+    dbx = new Dropbox.Dropbox({ accessToken: ACCESS_TOKEN });
+    let response = await dbx.filesListFolder({path: path})
+    if (response.status === 200) {
+        return response.result
+    } else {
+        console.error(`Error ${response}`)
+    }
 }
 
 function displayFiles(files) {
     var filesList = document.getElementById('files');
-    filesList.innerHTML = ""
     var li;
-    for (var i = 0; i < files.length; i++) {
-    li = document.createElement('li');
-    li.appendChild(document.createTextNode(files[i].name));
-    filesList.appendChild(li);
-    }
+    filesList.innerHTML = ""
+    files.forEach(file => {
+        let liName = document.createElement('li');
+        liName.appendChild(document.createTextNode( file.Name));
+        filesList.appendChild(liName);
+        let liDlLink = document.createElement('li');
+        liDlLink.appendChild(document.createTextNode( file.Downloadlink));
+        filesList.appendChild(liDlLink);
+    });
 }
 
-
+async function filesGetTemporaryLink(fileId) {
+    
+    let response = await dbx.filesGetTemporaryLink({path: fileId})
+    if (response.status === 200) {
+        return response.result.link
+    } else {
+        console.error("error" + response)
+    }
+}
